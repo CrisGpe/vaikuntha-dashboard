@@ -1,0 +1,25 @@
+{
+  "name": "vaikuntha-change-management-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard de Demanda, Órdenes y Clientes para entrevistas de transición SaS Vaikuntha",
+  "private": true,
+  "scripts": {
+    "build": "npm run build --prefix client",
+    "client": "npm run dev --prefix client",
+    "server": "npm run dev --prefix server",
+    "install:all": "npm install && npm install --prefix client && npm install --prefix server"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.1",
+    "typescript": "^5.7.3"
+  }
+}
