@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import type { OrderRecord, AttendanceRecord, AgentProductivity, ClientRecord } from "../../types";
 import { InterviewHeader } from "../interview/InterviewHeader";
 import { InterviewSummaryKPIs } from "../interview/InterviewSummaryKPIs";
@@ -36,16 +36,41 @@ export const InterviewSheetView: React.FC<InterviewSheetViewProps> = ({
   };
 
   const prod = productivity[currentAgent];
-  const agentOrders = orders.filter((o) => o.agent === currentAgent);
-  const agentAttendance = attendance.filter((a) => a.agent.toLowerCase() === currentAgent.toLowerCase());
-  const agentClients = clients.filter(
-    (c) => c.preferredAgent && c.preferredAgent.toLowerCase() === currentAgent.toLowerCase()
+  const agentOrders = useMemo(() => orders.filter((o) => o.agent === currentAgent), [orders, currentAgent]);
+  const agentAttendance = useMemo(
+    () => attendance.filter((a) => a.agent.toLowerCase() === currentAgent.toLowerCase()),
+    [attendance, currentAgent]
+  );
+  const agentClients = useMemo(
+    () => clients.filter((c) => c.preferredAgent && c.preferredAgent.toLowerCase() === currentAgent.toLowerCase()),
+    [clients, currentAgent]
   );
 
-  const completed = agentOrders.filter((o) => o.status === "COMPLETADO").length;
-  const canceled = agentOrders.filter((o) => o.status === "CANCELADO").length;
+  const completed = useMemo(() => agentOrders.filter((o) => o.status === "COMPLETADO").length, [agentOrders]);
+  const canceled = useMemo(() => agentOrders.filter((o) => o.status === "CANCELADO").length, [agentOrders]);
   const successRate = agentOrders.length > 0 ? ((completed / agentOrders.length) * 100).toFixed(1) : "100";
-  const totalWorkedHours = agentAttendance.reduce((acc, a) => acc + a.totalWorkMinutes, 0) / 60;
+  const totalWorkedHours = useMemo(
+    () => agentAttendance.reduce((acc, a) => acc + a.totalWorkMinutes, 0) / 60,
+    [agentAttendance]
+  );
+
+  // Desglose de atenciones por Modalidad de Ingreso
+  const agentModalities = useMemo(() => {
+    const counts: Record<string, number> = {};
+    agentOrders.forEach((o) => {
+      const type = (o.clientType && o.clientType.trim()) || "Turno";
+      counts[type] = (counts[type] || 0) + 1;
+    });
+
+    const total = agentOrders.length || 1;
+    return Object.entries(counts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: Number(((count / total) * 100).toFixed(1))
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [agentOrders]);
 
   return (
     <div className="space-y-3.5">
@@ -98,8 +123,8 @@ export const InterviewSheetView: React.FC<InterviewSheetViewProps> = ({
           totalWorkedHours={totalWorkedHours}
         />
 
-        {/* 4. Servicios Estrella y Cartera VIP */}
-        <InterviewPerformanceGrid productivity={prod} />
+        {/* 4. Servicios Estrella, Modalidad de Ingreso y Cartera VIP */}
+        <InterviewPerformanceGrid productivity={prod} modalities={agentModalities} />
 
         {/* 5. Beneficios para el Colaborador (Gestión del Cambio) */}
         <VaikunthaBenefitsSection />
