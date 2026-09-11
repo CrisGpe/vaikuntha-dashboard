@@ -3,6 +3,7 @@ import type { OrderRecord, AttendanceRecord, AgentProductivity, ClientRecord } f
 import { InterviewHeader } from "../interview/InterviewHeader";
 import { InterviewSummaryKPIs } from "../interview/InterviewSummaryKPIs";
 import { InterviewPerformanceGrid } from "../interview/InterviewPerformanceGrid";
+import { InterviewWeeklyDistribution } from "../interview/InterviewWeeklyDistribution";
 import { VaikunthaBenefitsSection } from "../interview/VaikunthaBenefitsSection";
 import { InterviewAgreementsNotes } from "../interview/InterviewAgreementsNotes";
 
@@ -126,10 +127,13 @@ export const InterviewSheetView: React.FC<InterviewSheetViewProps> = ({
         {/* 4. Servicios Estrella, Modalidad de Ingreso y Cartera VIP */}
         <InterviewPerformanceGrid productivity={prod} modalities={agentModalities} />
 
-        {/* 5. Beneficios para el Colaborador (Gestión del Cambio) */}
+        {/* 5. Distribución de Demanda por Día de la Semana (Ritmo Semanal) */}
+        <InterviewWeeklyDistribution orders={agentOrders} />
+
+        {/* 6. Beneficios para el Colaborador (Gestión del Cambio) */}
         <VaikunthaBenefitsSection />
 
-        {/* 6. Acuerdos, Expectativas y Firmas */}
+        {/* 7. Acuerdos, Expectativas y Firmas */}
         <InterviewAgreementsNotes currentAgent={currentAgent} />
       </div>
     </div>

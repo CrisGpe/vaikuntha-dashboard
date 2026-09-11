@@ -3,6 +3,7 @@ import type { OrderRecord } from "../../types";
 import { DemandKPIs } from "../demand/DemandKPIs";
 import { ServicesDistributionChart } from "../demand/ServicesDistributionChart";
 import { ModalityPieChart } from "../demand/ModalityPieChart";
+import { DayOfWeekDemandChart } from "../demand/DayOfWeekDemandChart";
 import { HourlyDemandChart } from "../demand/HourlyDemandChart";
 
 interface DemandViewProps {
@@ -19,7 +20,7 @@ export const DemandView: React.FC<DemandViewProps> = ({ orders, selectedAgent })
   const serviceDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredOrders.forEach((o) => {
-      const type = o.serviceType || "Sin clasificar";
+      const type = o.serviceType || "Otros";
       counts[type] = (counts[type] || 0) + 1;
     });
 
@@ -125,7 +126,13 @@ export const DemandView: React.FC<DemandViewProps> = ({ orders, selectedAgent })
         <ModalityPieChart modalities={clientTypeDistribution} />
       </div>
 
-      {/* 3. Curva de Demanda Horaria Continua */}
+      {/* 3. Corte por Variable Día (Comportamiento Semanal: Vie-Dom vs Lun-Jue) */}
+      <DayOfWeekDemandChart
+        orders={filteredOrders}
+        activeModalities={activeModalities}
+      />
+
+      {/* 4. Curva de Demanda Horaria Continua */}
       <HourlyDemandChart
         hourlyDemand={hourlyDemand}
         activeModalities={activeModalities}
