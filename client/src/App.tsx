@@ -168,6 +168,7 @@ export const App: React.FC = () => {
             {activeTab === "demand" && (
               <DemandView
                 orders={temporallyFilteredOrders}
+                attendance={temporallyFilteredAttendance}
                 selectedAgent={selectedAgent}
               />
             )}

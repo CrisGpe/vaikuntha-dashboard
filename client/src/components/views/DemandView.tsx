@@ -1,21 +1,27 @@
 import React, { useMemo } from "react";
-import type { OrderRecord } from "../../types";
+import type { OrderRecord, AttendanceRecord } from "../../types";
 import { DemandKPIs } from "../demand/DemandKPIs";
 import { ServicesDistributionChart } from "../demand/ServicesDistributionChart";
 import { ModalityPieChart } from "../demand/ModalityPieChart";
 import { DayOfWeekDemandChart } from "../demand/DayOfWeekDemandChart";
-import { HourlyDemandChart } from "../demand/HourlyDemandChart";
+import { HourlyDemandCenter } from "../demand/HourlyDemandCenter";
 
 interface DemandViewProps {
   orders: OrderRecord[];
+  attendance?: AttendanceRecord[];
   selectedAgent: string;
 }
 
-export const DemandView: React.FC<DemandViewProps> = ({ orders, selectedAgent }) => {
+export const DemandView: React.FC<DemandViewProps> = ({ orders, attendance = [], selectedAgent }) => {
   const filteredOrders = useMemo(() => {
     if (selectedAgent === "ALL") return orders;
     return orders.filter((o) => o.agent === selectedAgent);
   }, [orders, selectedAgent]);
+
+  const filteredAttendance = useMemo(() => {
+    if (selectedAgent === "ALL") return attendance;
+    return attendance.filter((a) => a.agent && a.agent.toLowerCase() === selectedAgent.toLowerCase());
+  }, [attendance, selectedAgent]);
 
   const serviceDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -60,50 +66,6 @@ export const DemandView: React.FC<DemandViewProps> = ({ orders, selectedAgent })
     return clientTypeDistribution.map((c) => c.name);
   }, [clientTypeDistribution]);
 
-  // Cálculo integral de demanda horaria
-  const hourlyDemand = useMemo(() => {
-    const hours = [
-      "09:00 AM",
-      "10:00 AM",
-      "11:00 AM",
-      "12:00 PM",
-      "01:00 PM",
-      "02:00 PM",
-      "03:00 PM",
-      "04:00 PM",
-      "05:00 PM",
-      "06:00 PM",
-      "07:00 PM",
-      "08:00 PM"
-    ];
-
-    const map: Record<string, Record<string, any>> = {};
-    hours.forEach((h) => {
-      map[h] = { hour: h, total: 0 };
-    });
-
-    filteredOrders.forEach((o) => {
-      if (!o.registerTime) return;
-      const match = o.registerTime.match(/(\d{1,2}):\d{2}\s*(AM|PM)?/i);
-      if (match) {
-        let h = parseInt(match[1], 10);
-        const p = (match[2] || "AM").toUpperCase();
-        const formatted = h < 10 ? `0${h}:00 ${p}` : `${h}:00 ${p}`;
-        if (map[formatted]) {
-          map[formatted].total += 1;
-
-          const modality = o.clientType || "Cliente";
-          map[formatted][modality] = (map[formatted][modality] || 0) + 1;
-
-          const srv = o.serviceType || "Otros";
-          map[formatted][srv] = (map[formatted][srv] || 0) + 1;
-        }
-      }
-    });
-
-    return Object.values(map);
-  }, [filteredOrders]);
-
   // Servicios para desagregación horaria
   const activeServicesForHourly = useMemo(() => {
     return serviceDistribution.slice(0, 8).map((s) => s.name);
@@ -132,9 +94,10 @@ export const DemandView: React.FC<DemandViewProps> = ({ orders, selectedAgent })
         activeModalities={activeModalities}
       />
 
-      {/* 4. Curva de Demanda Horaria Continua */}
-      <HourlyDemandChart
-        hourlyDemand={hourlyDemand}
+      {/* 4. Centro de Inteligencia Horaria (Curva Dinámica, Heatmap 2D, Capacidad vs Personal, Proyección & Descansos) */}
+      <HourlyDemandCenter
+        orders={filteredOrders}
+        attendance={filteredAttendance}
         activeModalities={activeModalities}
         activeServicesForHourly={activeServicesForHourly}
         serviceDistribution={serviceDistribution}
