@@ -12,10 +12,12 @@ import {
   consolidateClients,
   calculateAgentProductivity,
   calculateDateRange,
-  buildAgentNameResolver
+  buildAgentNameResolver,
+  buildEstilistaResolver,
+  normalizeSalesSheet
 } from "./dataNormalizer.js";
 import { getMockDashboardData } from "../mockData.js";
-import { DashboardResponse, OrderRecord, AttendanceRecord } from "../types.js";
+import { DashboardResponse, OrderRecord, AttendanceRecord, SaleRecord } from "../types.js";
 
 export class GoogleSheetsService {
   private spreadsheetId: string = "1SXuedQigLxVUF2oxn65wEZ5-HnDDiVdy7lY7HaweVC4";
@@ -84,6 +86,7 @@ export class GoogleSheetsService {
     let asistenciaRaw: any[][] = [];
     let clientesRaw: any[][] = [];
     let agentesRaw: any[][] = [];
+    let ventasRaw: any[][] = [];
 
     sheetNames.forEach((sheetName) => {
       const lower = sheetName.trim().toLowerCase();
@@ -95,6 +98,7 @@ export class GoogleSheetsService {
       else if (lower === "asistencia") asistenciaRaw = data.slice(1);
       else if (lower === "clientes") clientesRaw = data.slice(1);
       else if (lower === "agentes") agentesRaw = data.slice(1);
+      else if (lower.includes("ventas")) ventasRaw = data.slice(1);
     });
 
     return this.buildResponseFromRaw(
@@ -105,7 +109,8 @@ export class GoogleSheetsService {
       agentesRaw,
       includeBorrador,
       customTitle || (source === "google_sheets" ? "Google Sheets Vaikuntha (Conexión en Vivo)" : `Excel Importado: ${fileName}`),
-      source
+      source,
+      ventasRaw
     );
   }
 
@@ -210,6 +215,9 @@ export class GoogleSheetsService {
         if (sheetNames.includes("Clientes")) rangesToFetch.push("Clientes!A2:Z");
         if (sheetNames.includes("Agentes")) rangesToFetch.push("Agentes!A2:Z");
 
+        const salesSheetName = sheetNames.find((s) => s.toLowerCase().includes("ventas"));
+        if (salesSheetName) rangesToFetch.push(`${salesSheetName}!A2:I`);
+
         const batchResponse = await sheets.spreadsheets.values.batchGet({
           spreadsheetId: currentId,
           ranges: rangesToFetch
@@ -221,6 +229,7 @@ export class GoogleSheetsService {
         let asistenciaRaw: any[][] = [];
         let clientesRaw: any[][] = [];
         let agentesRaw: any[][] = [];
+        let ventasRaw: any[][] = [];
 
         valueRanges.forEach((vr) => {
           const range = vr.range || "";
@@ -229,6 +238,7 @@ export class GoogleSheetsService {
           if (range.startsWith("Asistencia")) asistenciaRaw = vr.values || [];
           if (range.startsWith("Clientes")) clientesRaw = vr.values || [];
           if (range.startsWith("Agentes")) agentesRaw = vr.values || [];
+          if (salesSheetName && range.startsWith(salesSheetName)) ventasRaw = vr.values || [];
         });
 
         const response = this.buildResponseFromRaw(
@@ -239,7 +249,8 @@ export class GoogleSheetsService {
           agentesRaw,
           includeBorrador,
           title,
-          "google_sheets"
+          "google_sheets",
+          ventasRaw
         );
 
         this.cachedDataBySheet.set(currentId, { data: response, timestamp: now });
@@ -281,12 +292,13 @@ export class GoogleSheetsService {
     };
 
     try {
-      const [oatcRaw, borradorRaw, asistenciaRaw, clientesRaw, agentesRaw] = await Promise.all([
+      const [oatcRaw, borradorRaw, asistenciaRaw, clientesRaw, agentesRaw, ventasRaw] = await Promise.all([
         fetchSheet("OATC").catch(() => []),
         fetchSheet("Borrador").catch(() => []),
         fetchSheet("Asistencia").catch(() => []),
         fetchSheet("Clientes").catch(() => []),
-        fetchSheet("Agentes").catch(() => [])
+        fetchSheet("Agentes").catch(() => []),
+        fetchSheet("Ventas 2026 al 10.09").catch(() => [])
       ]);
 
       if (oatcRaw.length === 0 && clientesRaw.length === 0) {
@@ -301,7 +313,8 @@ export class GoogleSheetsService {
         agentesRaw,
         includeBorrador,
         "Google Sheets Vaikuntha (Conexión en Vivo)",
-        "google_sheets"
+        "google_sheets",
+        ventasRaw
       );
     } catch (err: any) {
       console.warn("Error en fetchViaPublicCsv:", err.message);
@@ -317,10 +330,12 @@ export class GoogleSheetsService {
     agentesRaw: any[][],
     includeBorrador: boolean,
     title: string,
-    source: "google_sheets" | "excel_upload" | "appscript_webapp" | "mock_data"
+    source: "google_sheets" | "excel_upload" | "appscript_webapp" | "mock_data",
+    ventasRaw: any[][] = []
   ): DashboardResponse {
-    // 1. Crear el resolvedor unificado de nombres de agentes
+    // 1. Crear el resolvedor unificado de nombres de agentes y estilistas
     const resolveAgent = buildAgentNameResolver(agentesRaw);
+    const resolveEstilista = buildEstilistaResolver(agentesRaw);
 
     const oatcOrders: OrderRecord[] = oatcRaw
       .map((r, i) => normalizeOatcRow(r, i, resolveAgent))
@@ -347,6 +362,9 @@ export class GoogleSheetsService {
       });
     }
 
+    // Normalizar ventas si la pestaña está presente en el libro
+    const sales: SaleRecord[] = normalizeSalesSheet(ventasRaw, resolveEstilista);
+
     const sheetClients = normalizeClientesSheet(clientesRaw);
     const clients = consolidateClients(allOrders, sheetClients);
 
@@ -356,6 +374,9 @@ export class GoogleSheetsService {
     });
     attendance.forEach((a) => {
       if (a.agent) extraAgents.add(a.agent);
+    });
+    sales.forEach((s) => {
+      if (s.agent && s.agent !== "Sin Asignar") extraAgents.add(s.agent);
     });
 
     const agentDetails = normalizeAgentesDetails(agentesRaw, Array.from(extraAgents));
@@ -367,8 +388,10 @@ export class GoogleSheetsService {
     });
     const serviceTypes = Array.from(serviceSet).sort();
 
-    const productivity = calculateAgentProductivity(allOrders, attendance, agents);
+    const productivity = calculateAgentProductivity(allOrders, attendance, agents, sales);
     const dateRange = calculateDateRange(allOrders);
+
+    const totalSalesAmount = Math.round(sales.reduce((acc, s) => acc + s.amount, 0) * 100) / 100;
 
     return {
       orders: allOrders,
@@ -378,6 +401,7 @@ export class GoogleSheetsService {
       agentDetails,
       serviceTypes,
       productivity,
+      sales,
       dateRange,
       metadata: {
         spreadsheetId: this.spreadsheetId,
@@ -391,7 +415,9 @@ export class GoogleSheetsService {
           borradorOrders: borradorOrders.length,
           attendanceRecords: attendance.length,
           clientsCount: clients.length,
-          agentsCount: agents.length
+          agentsCount: agents.length,
+          salesCount: sales.length,
+          totalSalesAmount
         }
       }
     };

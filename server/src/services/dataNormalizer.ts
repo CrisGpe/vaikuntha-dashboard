@@ -4,7 +4,9 @@ import {
   AttendanceRecord,
   AgentProductivity,
   OrderStatus,
-  AgentDetail
+  AgentDetail,
+  SaleRecord,
+  SoldItemStat
 } from "../types.js";
 
 /**
@@ -454,6 +456,227 @@ export function normalizeAgentesSheet(rows: any[][]): string[] {
   return details.map((d) => d.name);
 }
 
+/**
+ * Normaliza cadenas eliminando tildes, signos y reduciendo espacios para matching difuso
+ */
+export function cleanStringForMatch(s: string): string {
+  if (!s) return "";
+  return s
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Motor de resolución inteligente de estilistas para la columna F de Ventas hacia Agentes oficiales
+ */
+export function buildEstilistaResolver(agentesRaw: any[][]): (name: string) => string {
+  const explicitOverrides: Record<string, string> = {
+    "JIMMY CARLOS FLORES COCA": "Carlos Jimi Flores Coca",
+    "GLADYS GLOSSS": "Gladis Laiza Bazan",
+    "CARLOS AGUSTO DAULIA REVILLA": "CARLOS COFIURE",
+    "HILDA GLOWS": "Gladis Laiza Bazan",
+    "LUXURY": "Sin Asignar",
+    "STALY LUXURY": "Sin Asignar",
+    "GONZALES SALON SPA": "Sin Asignar"
+  };
+
+  interface AgentCatalogEntry {
+    fullName: string;
+    nickname?: string;
+    cleanFull: string;
+    cleanNick: string;
+    words: string[];
+  }
+
+  const catalog: AgentCatalogEntry[] = [];
+
+  if (agentesRaw && agentesRaw.length > 0) {
+    agentesRaw.forEach((row) => {
+      if (!row || row.length < 3) return;
+      const fullName = (row[2] || "").toString().trim();
+      const nickname = (row[13] || "").toString().trim();
+
+      if (fullName && fullName.toLowerCase() !== "colaboradores") {
+        catalog.push({
+          fullName,
+          nickname: nickname || undefined,
+          cleanFull: cleanStringForMatch(fullName),
+          cleanNick: cleanStringForMatch(nickname),
+          words: cleanStringForMatch(fullName).split(" ").filter(Boolean)
+        });
+      }
+    });
+  }
+
+  return (rawName: string): string => {
+    if (!rawName) return "Sin Asignar";
+    const trimmed = rawName.trim();
+    if (!trimmed) return "Sin Asignar";
+
+    const upper = trimmed.toUpperCase();
+    if (explicitOverrides[upper]) {
+      return explicitOverrides[upper];
+    }
+
+    const cRaw = cleanStringForMatch(trimmed);
+
+    // 1. Coincidencia limpia directa con nombre completo o nickname
+    for (const ag of catalog) {
+      if (ag.cleanFull === cRaw || (ag.cleanNick && ag.cleanNick === cRaw)) {
+        return ag.fullName;
+      }
+    }
+
+    // 2. Coincidencia difusa con equivalencia fonética Y <-> I
+    const cRawFuzzy = cRaw.replace(/Y/g, "I");
+    for (const ag of catalog) {
+      const agFuzzyNick = ag.cleanNick.replace(/Y/g, "I");
+      const agFuzzyFull = ag.cleanFull.replace(/Y/g, "I");
+
+      // Guardia contra colisión de apellidos compartidos: Magali vs Gladis (ambas Laiza Bazan)
+      if (cRawFuzzy.includes("GLAD") && !agFuzzyNick.includes("GLAD")) continue;
+      if (cRawFuzzy.includes("MAGAL") && !agFuzzyNick.includes("MAGAL")) continue;
+
+      if (agFuzzyNick && (agFuzzyNick === cRawFuzzy || cRawFuzzy.split(" ").includes(agFuzzyNick))) {
+        return ag.fullName;
+      }
+      if (agFuzzyFull === cRawFuzzy) {
+        return ag.fullName;
+      }
+    }
+
+    // 3. Intersección de tokens de palabras con equivalencia B/V y Y/I (ej. Carvajal vs Carbajal)
+    const rawWords = cRaw.split(" ").filter((w) => w.length > 2);
+    let bestMatch: string | null = null;
+    let maxMatches = 0;
+
+    for (const ag of catalog) {
+      if (cRaw.includes("MAGAL") && ag.cleanFull.includes("GLADIS")) continue;
+      if (cRaw.includes("GLAD") && ag.cleanFull.includes("MAGALI")) continue;
+
+      let matchCount = 0;
+      for (const w of rawWords) {
+        const wNorm = w.replace(/B/g, "V").replace(/Y/g, "I");
+        for (const aw of ag.words) {
+          const awNorm = aw.replace(/B/g, "V").replace(/Y/g, "I");
+          if (wNorm === awNorm) {
+            matchCount++;
+            break;
+          }
+        }
+      }
+
+      if (matchCount > maxMatches) {
+        maxMatches = matchCount;
+        bestMatch = ag.fullName;
+      }
+    }
+
+    if (maxMatches >= 2 && bestMatch) {
+      return bestMatch;
+    }
+
+    return trimmed;
+  };
+}
+
+/**
+ * Normaliza una fila individual de la hoja de ventas
+ * Columnas:
+ * Col A (0): Fecha (considerar)
+ * Col B (1): RazSoc. (no considerar)
+ * Col C (2): Doc. (no considerar)
+ * Col D (3): Numero (no considerar)
+ * Col E (4): Cliente (considerar)
+ * Col F (5): Estilista (considerar & normalizar)
+ * Col G (6): Producto / Servicio (considerar)
+ * Col H (7): Cant. (considerar)
+ * Col I (8): Importe. (considerar)
+ */
+export function normalizeSalesRow(
+  row: any[],
+  index: number,
+  resolveEstilista: (name: string) => string
+): SaleRecord | null {
+  if (!row || row.length < 6) return null;
+
+  const rawDate = row[0];
+  const rawClient = (row[4] || "CLIENTE").toString().trim();
+  const rawEstilista = (row[5] || "Sin Asignar").toString().trim();
+  const rawItem = (row[6] || "").toString().trim();
+  const rawCant = row[7];
+  const rawImporte = row[8];
+
+  // Descartar cabecera o filas vacías
+  if (
+    rawDate === "Fecha" ||
+    rawEstilista === "Estilista" ||
+    rawItem === "Producto / Servicio" ||
+    rawImporte === "Importe."
+  ) {
+    return null;
+  }
+
+  if (!rawItem && (rawImporte === undefined || rawImporte === null || rawImporte === "")) {
+    return null;
+  }
+
+  const isoDate = parseDateToIso(rawDate);
+  const displayDate = formatDisplayDate(rawDate, isoDate);
+
+  let quantity = 1;
+  if (typeof rawCant === "number") {
+    quantity = rawCant;
+  } else if (rawCant) {
+    const cleanQty = rawCant.toString().replace(/[^0-9.-]+/g, "");
+    quantity = parseFloat(cleanQty) || 1;
+  }
+
+  let amount = 0;
+  if (typeof rawImporte === "number") {
+    amount = rawImporte;
+  } else if (rawImporte) {
+    const cleanNum = rawImporte.toString().replace(/[^0-9.-]+/g, "");
+    amount = parseFloat(cleanNum) || 0;
+  }
+
+  const resolvedAgent = resolveEstilista(rawEstilista);
+
+  return {
+    id: `SALE-${index + 1}`,
+    date: displayDate || (rawDate ? rawDate.toString() : ""),
+    isoDate,
+    clientName: rawClient || "CLIENTE",
+    agent: resolvedAgent,
+    rawAgent: rawEstilista,
+    item: rawItem || "Servicio / Producto sin especificar",
+    quantity: Math.max(0, quantity),
+    amount: Math.round(amount * 100) / 100
+  };
+}
+
+export function normalizeSalesSheet(
+  rows: any[][],
+  resolveEstilista: (name: string) => string
+): SaleRecord[] {
+  if (!rows || rows.length === 0) return [];
+
+  const sales: SaleRecord[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const record = normalizeSalesRow(rows[i], i, resolveEstilista);
+    if (record) {
+      sales.push(record);
+    }
+  }
+
+  return sales;
+}
+
 export function consolidateClients(orders: OrderRecord[], sheetClients: ClientRecord[] = []): ClientRecord[] {
   const clientMap = new Map<string, ClientRecord>();
 
@@ -504,7 +727,8 @@ export function consolidateClients(orders: OrderRecord[], sheetClients: ClientRe
 export function calculateAgentProductivity(
   orders: OrderRecord[],
   attendance: AttendanceRecord[],
-  knownAgents: string[] = []
+  knownAgents: string[] = [],
+  sales: SaleRecord[] = []
 ): Record<string, AgentProductivity> {
   const result: Record<string, AgentProductivity> = {};
 
@@ -515,10 +739,14 @@ export function calculateAgentProductivity(
   attendance.forEach((a) => {
     if (a.agent) agents.add(a.agent);
   });
+  sales.forEach((s) => {
+    if (s.agent && s.agent !== "Sin Asignar") agents.add(s.agent);
+  });
 
   for (const agent of agents) {
     const agentOrders = orders.filter((o) => o.agent.toLowerCase() === agent.toLowerCase());
     const agentAttendance = attendance.filter((a) => a.agent.toLowerCase() === agent.toLowerCase());
+    const agentSales = sales.filter((s) => s.agent.toLowerCase() === agent.toLowerCase());
 
     const totalOrders = agentOrders.length;
     const completedOrders = agentOrders.filter((o) => o.status === "COMPLETADO").length;
@@ -569,6 +797,38 @@ export function calculateAgentProductivity(
       .sort((a, b) => b.visits - a.visits)
       .slice(0, 6);
 
+    // Métricas Financieras y Comerciales de Ventas
+    let totalSalesAmount = 0;
+    let totalSalesCount = 0;
+    let averageTicket = 0;
+    let topSoldItems: SoldItemStat[] = [];
+
+    if (agentSales.length > 0) {
+      const rawSalesAmount = agentSales.reduce((acc, s) => acc + s.amount, 0);
+      totalSalesAmount = Math.round(rawSalesAmount * 100) / 100;
+      totalSalesCount = agentSales.reduce((acc, s) => acc + s.quantity, 0);
+      averageTicket = totalSalesCount > 0 ? Math.round((totalSalesAmount / totalSalesCount) * 100) / 100 : 0;
+
+      const itemAggregation: Record<string, { count: number; amount: number }> = {};
+      agentSales.forEach((s) => {
+        const itemKey = s.item || "Varios";
+        if (!itemAggregation[itemKey]) {
+          itemAggregation[itemKey] = { count: 0, amount: 0 };
+        }
+        itemAggregation[itemKey].count += s.quantity;
+        itemAggregation[itemKey].amount += s.amount;
+      });
+
+      topSoldItems = Object.entries(itemAggregation)
+        .map(([name, stat]) => ({
+          name,
+          count: stat.count,
+          amount: Math.round(stat.amount * 100) / 100
+        }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 5);
+    }
+
     result[agent] = {
       agent,
       totalOrders,
@@ -579,7 +839,11 @@ export function calculateAgentProductivity(
       ordersPerHour,
       avgDurationMinutes,
       topServices,
-      loyalClients
+      loyalClients,
+      totalSalesAmount,
+      totalSalesCount,
+      averageTicket,
+      topSoldItems
     };
   }
 

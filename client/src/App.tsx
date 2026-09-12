@@ -42,7 +42,8 @@ export const App: React.FC = () => {
   // Hook centralizado de filtrado con guardián reactivo de agentes por sede
   const {
     temporallyFilteredOrders,
-    temporallyFilteredAttendance
+    temporallyFilteredAttendance,
+    temporallyFilteredSales
   } = useFilteredData(data, selectedAgent, setSelectedAgent, dateFilter);
 
   const source = data?.metadata.source || "mock_data";
@@ -186,6 +187,7 @@ export const App: React.FC = () => {
                 attendance={temporallyFilteredAttendance}
                 clients={data?.clients || []}
                 productivity={data?.productivity || {}}
+                sales={temporallyFilteredSales}
               />
             )}
           </>

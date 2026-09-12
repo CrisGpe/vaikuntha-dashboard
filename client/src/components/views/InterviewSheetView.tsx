@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import type { OrderRecord, AttendanceRecord, AgentProductivity, ClientRecord } from "../../types";
+import type { OrderRecord, AttendanceRecord, AgentProductivity, ClientRecord, SaleRecord } from "../../types";
 import { InterviewHeader } from "../interview/InterviewHeader";
 import { InterviewSummaryKPIs } from "../interview/InterviewSummaryKPIs";
 import { InterviewPerformanceGrid } from "../interview/InterviewPerformanceGrid";
@@ -15,6 +15,7 @@ interface InterviewSheetViewProps {
   attendance: AttendanceRecord[];
   clients: ClientRecord[];
   productivity: Record<string, AgentProductivity>;
+  sales?: SaleRecord[];
 }
 
 export const InterviewSheetView: React.FC<InterviewSheetViewProps> = ({
@@ -24,7 +25,8 @@ export const InterviewSheetView: React.FC<InterviewSheetViewProps> = ({
   orders,
   attendance,
   clients,
-  productivity
+  productivity,
+  sales = []
 }) => {
   // Asegurar que currentAgent siempre pertenezca a la lista de agentes del salón actual
   const currentAgent =
@@ -46,6 +48,62 @@ export const InterviewSheetView: React.FC<InterviewSheetViewProps> = ({
     () => clients.filter((c) => c.preferredAgent && c.preferredAgent.toLowerCase() === currentAgent.toLowerCase()),
     [clients, currentAgent]
   );
+
+  const agentSales = useMemo(() => {
+    if (!sales || sales.length === 0) return [];
+    return sales.filter((s) => s.agent.toLowerCase() === currentAgent.toLowerCase());
+  }, [sales, currentAgent]);
+
+  const totalSalesAmount = useMemo(() => {
+    if (agentSales.length > 0) {
+      return Math.round(agentSales.reduce((acc, s) => acc + s.amount, 0) * 100) / 100;
+    }
+    return prod?.totalSalesAmount;
+  }, [agentSales, prod]);
+
+  const totalSalesCount = useMemo(() => {
+    if (agentSales.length > 0) {
+      return agentSales.reduce((acc, s) => acc + s.quantity, 0);
+    }
+    return prod?.totalSalesCount;
+  }, [agentSales, prod]);
+
+  const averageTicket = useMemo(() => {
+    if (totalSalesCount && totalSalesCount > 0 && totalSalesAmount) {
+      return Math.round((totalSalesAmount / totalSalesCount) * 100) / 100;
+    }
+    return prod?.averageTicket;
+  }, [totalSalesAmount, totalSalesCount, prod]);
+
+  const reactiveProd = useMemo(() => {
+    if (!prod) return undefined;
+    if (agentSales.length === 0) return prod;
+
+    const itemMap: Record<string, { count: number; amount: number }> = {};
+    agentSales.forEach((s) => {
+      const k = s.item || "Varios";
+      if (!itemMap[k]) itemMap[k] = { count: 0, amount: 0 };
+      itemMap[k].count += s.quantity;
+      itemMap[k].amount += s.amount;
+    });
+
+    const topSoldItems = Object.entries(itemMap)
+      .map(([name, stat]) => ({
+        name,
+        count: stat.count,
+        amount: Math.round(stat.amount * 100) / 100
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    return {
+      ...prod,
+      totalSalesAmount,
+      totalSalesCount,
+      averageTicket,
+      topSoldItems
+    };
+  }, [prod, agentSales, totalSalesAmount, totalSalesCount, averageTicket]);
 
   const completed = useMemo(() => agentOrders.filter((o) => o.status === "COMPLETADO").length, [agentOrders]);
   const canceled = useMemo(() => agentOrders.filter((o) => o.status === "CANCELADO").length, [agentOrders]);
@@ -122,10 +180,13 @@ export const InterviewSheetView: React.FC<InterviewSheetViewProps> = ({
           successRate={successRate}
           loyalClientsCount={agentClients.length}
           totalWorkedHours={totalWorkedHours}
+          totalSalesAmount={totalSalesAmount}
+          totalSalesCount={totalSalesCount}
+          averageTicket={averageTicket}
         />
 
-        {/* 4. Servicios Estrella, Modalidad de Ingreso y Cartera VIP */}
-        <InterviewPerformanceGrid productivity={prod} modalities={agentModalities} />
+        {/* 4. Servicios Estrella, Facturación, Modalidad de Ingreso y Cartera VIP */}
+        <InterviewPerformanceGrid productivity={reactiveProd} modalities={agentModalities} />
 
         {/* 5. Distribución de Demanda por Día de la Semana (Ritmo Semanal) */}
         <InterviewWeeklyDistribution orders={agentOrders} />

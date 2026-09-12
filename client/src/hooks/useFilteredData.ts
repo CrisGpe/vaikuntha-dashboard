@@ -1,5 +1,5 @@
 import { useMemo, useEffect } from "react";
-import type { DashboardResponse, DateFilter, OrderRecord, AttendanceRecord } from "../types";
+import type { DashboardResponse, DateFilter, OrderRecord, AttendanceRecord, SaleRecord } from "../types";
 
 export const useFilteredData = (
   data: DashboardResponse | null,
@@ -44,6 +44,19 @@ export const useFilteredData = (
     });
   }, [data?.attendance, dateFilter]);
 
+  // Filtrado temporal de ventas
+  const temporallyFilteredSales = useMemo(() => {
+    if (!data?.sales) return [];
+    if (dateFilter.preset === "ALL") return data.sales;
+
+    return data.sales.filter((s: SaleRecord) => {
+      if (!s.isoDate) return true;
+      if (dateFilter.startDate && s.isoDate < dateFilter.startDate) return false;
+      if (dateFilter.endDate && s.isoDate > dateFilter.endDate) return false;
+      return true;
+    });
+  }, [data?.sales, dateFilter]);
+
   // Filtrado cruzado: fecha + agente (para Demanda y Órdenes)
   const fullyFilteredOrders = useMemo(() => {
     if (selectedAgent === "ALL") return temporallyFilteredOrders;
@@ -59,10 +72,19 @@ export const useFilteredData = (
     );
   }, [temporallyFilteredAttendance, selectedAgent]);
 
+  const fullyFilteredSales = useMemo(() => {
+    if (selectedAgent === "ALL") return temporallyFilteredSales;
+    return temporallyFilteredSales.filter(
+      (s) => s.agent && s.agent.toLowerCase() === selectedAgent.toLowerCase()
+    );
+  }, [temporallyFilteredSales, selectedAgent]);
+
   return {
     temporallyFilteredOrders,
     temporallyFilteredAttendance,
+    temporallyFilteredSales,
     fullyFilteredOrders,
-    fullyFilteredAttendance
+    fullyFilteredAttendance,
+    fullyFilteredSales
   };
 };

@@ -44,6 +44,24 @@ export interface AttendanceRecord {
   breakMinutes: number;
 }
 
+export interface SoldItemStat {
+  name: string;
+  count: number;
+  amount: number;
+}
+
+export interface SaleRecord {
+  id: string;
+  date: string;
+  isoDate: string;
+  clientName: string;
+  agent: string;
+  rawAgent: string;
+  item: string;
+  quantity: number;
+  amount: number;
+}
+
 export interface AgentProductivity {
   agent: string;
   totalOrders: number;
@@ -55,6 +73,10 @@ export interface AgentProductivity {
   avgDurationMinutes: number;
   topServices: { name: string; count: number }[];
   loyalClients: { name: string; visits: number; phone?: string }[];
+  totalSalesAmount?: number;
+  totalSalesCount?: number;
+  averageTicket?: number;
+  topSoldItems?: SoldItemStat[];
 }
 
 export type DatePreset = "ALL" | "TODAY" | "LAST_7_DAYS" | "THIS_MONTH" | "LAST_30_DAYS" | "THIS_YEAR" | "CUSTOM";
@@ -81,6 +103,7 @@ export interface DashboardResponse {
   agentDetails?: AgentDetail[];
   serviceTypes: string[];
   productivity: Record<string, AgentProductivity>;
+  sales?: SaleRecord[];
   dateRange?: {
     minDate: string;
     maxDate: string;
@@ -99,6 +122,8 @@ export interface DashboardResponse {
       attendanceRecords: number;
       clientsCount: number;
       agentsCount?: number;
+      salesCount?: number;
+      totalSalesAmount?: number;
     };
   };
 }

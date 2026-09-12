@@ -1,5 +1,5 @@
 import React from "react";
-import { TrendingUp, HeartHandshake, CalendarCheck } from "lucide-react";
+import { TrendingUp, HeartHandshake, CalendarCheck, CircleDollarSign } from "lucide-react";
 import type { AgentProductivity } from "../../types";
 
 export interface ModalityBreakdownItem {
@@ -12,6 +12,15 @@ interface InterviewPerformanceGridProps {
   productivity: AgentProductivity | undefined;
   modalities?: ModalityBreakdownItem[];
 }
+
+const formatPEN = (val: number): string => {
+  return new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(val);
+};
 
 const MODALITY_COLORS: Record<string, { bar: string; text: string; dot: string }> = {
   Turno: { bar: "bg-cyan-500", text: "text-cyan-800", dot: "bg-cyan-500" },
@@ -29,10 +38,17 @@ export const InterviewPerformanceGrid: React.FC<InterviewPerformanceGridProps> =
   modalities = []
 }) => {
   const topModality = modalities.length > 0 ? modalities[0] : null;
+  const hasSoldItems = Boolean(productivity?.topSoldItems && productivity.topSoldItems.length > 0);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-      {/* 1. Servicios Top */}
+    <div
+      className={`grid gap-4 mb-5 ${
+        hasSoldItems
+          ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-4"
+          : "grid-cols-1 md:grid-cols-3"
+      }`}
+    >
+      {/* 1. Servicios Estrella (Operativo) */}
       <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 border border-slate-200 flex flex-col justify-between">
         <div>
           <h3 className="text-xs sm:text-sm font-bold text-slate-900 mb-2.5 flex items-center gap-1.5">
@@ -46,7 +62,7 @@ export const InterviewPerformanceGrid: React.FC<InterviewPerformanceGridProps> =
                   key={idx}
                   className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200/80 shadow-2xs"
                 >
-                  <span className="text-xs font-bold text-slate-800 truncate max-w-[170px]">
+                  <span className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
                     {idx + 1}. {srv.name}
                   </span>
                   <span className="text-xs font-bold text-cyan-800 shrink-0">
@@ -61,7 +77,39 @@ export const InterviewPerformanceGrid: React.FC<InterviewPerformanceGridProps> =
         </div>
       </div>
 
-      {/* 2. Modalidad de Ingreso (Origen de Atenciones) */}
+      {/* 2. Top Facturación por Servicio/Producto (Comercial / Financiero) */}
+      {hasSoldItems && (
+        <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50/40 border border-emerald-200/90 flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs sm:text-sm font-bold text-emerald-950 mb-2.5 flex items-center gap-1.5">
+              <CircleDollarSign className="w-4 h-4 text-emerald-700" />
+              Mayor Facturación (S/)
+            </h3>
+            <div className="space-y-1.5">
+              {productivity?.topSoldItems?.slice(0, 5).map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-2 rounded-lg bg-white border border-emerald-100 shadow-2xs"
+                >
+                  <div className="truncate max-w-[140px]">
+                    <span className="text-xs font-bold text-slate-800 truncate block">
+                      {idx + 1}. {item.name}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono block">
+                      {item.count} {item.count === 1 ? "venta" : "ventas"}
+                    </span>
+                  </div>
+                  <span className="text-xs font-black text-emerald-800 shrink-0">
+                    {formatPEN(item.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modalidad de Ingreso (Origen de Atenciones) */}
       <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 border border-slate-200 flex flex-col justify-between">
         <div>
           <h3 className="text-xs sm:text-sm font-bold text-slate-900 mb-2.5 flex items-center gap-1.5">
@@ -115,7 +163,7 @@ export const InterviewPerformanceGrid: React.FC<InterviewPerformanceGridProps> =
         )}
       </div>
 
-      {/* 3. Clientes VIP */}
+      {/* 4. Clientes VIP */}
       <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 border border-slate-200 flex flex-col justify-between">
         <div>
           <h3 className="text-xs sm:text-sm font-bold text-slate-900 mb-2.5 flex items-center gap-1.5">
@@ -129,7 +177,7 @@ export const InterviewPerformanceGrid: React.FC<InterviewPerformanceGridProps> =
                   key={idx}
                   className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200/80 shadow-2xs"
                 >
-                  <div className="truncate max-w-[170px]">
+                  <div className="truncate max-w-[150px]">
                     <span className="text-xs font-bold text-slate-800 truncate block">
                       {cl.name}
                     </span>
