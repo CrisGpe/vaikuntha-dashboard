@@ -6,13 +6,14 @@ import { Navbar } from "./components/Navbar";
 import { DateFilterBar } from "./components/DateFilterBar";
 import { SettingsModal } from "./components/SettingsModal";
 import { DemandView } from "./components/views/DemandView";
+import { SalesView } from "./components/views/SalesView";
 import { OrdersView } from "./components/views/OrdersView";
 import { ClientsView } from "./components/views/ClientsView";
 import { InterviewSheetView } from "./components/views/InterviewSheetView";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"demand" | "orders" | "clients" | "interview">("demand");
+  const [activeTab, setActiveTab] = useState<"demand" | "sales" | "orders" | "clients" | "interview">("demand");
   const [selectedAgent, setSelectedAgent] = useState<string>("ALL");
   const [dateFilter, setDateFilter] = useState<DateFilter>({ preset: "ALL" });
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -134,14 +135,23 @@ export const App: React.FC = () => {
 
       {/* 5. Contenedor Principal de Alta Densidad */}
       <main className="flex-1 max-w-[1560px] w-full mx-auto px-3 sm:px-5 lg:px-6 py-3.5 space-y-3.5">
-        {/* Barra de Filtros de Período (Activa en Demanda, Órdenes y Clientes) */}
+        {/* Barra de Filtros de Período (Activa en Demanda, Ventas, Órdenes y Clientes) */}
         {activeTab !== "interview" && (
           <DateFilterBar
             dateFilter={dateFilter}
             setDateFilter={setDateFilter}
             minAvailableDate={data?.dateRange?.minDate}
             maxAvailableDate={data?.dateRange?.maxDate}
-            totalFilteredOrders={temporallyFilteredOrders.length}
+            totalFilteredOrders={
+              activeTab === "sales"
+                ? (temporallyFilteredSales?.length || 0)
+                : temporallyFilteredOrders.length
+            }
+            customCountLabel={
+              activeTab === "sales"
+                ? `${(temporallyFilteredSales?.length || 0).toLocaleString("es-PE")} ventas en este rango`
+                : undefined
+            }
           />
         )}
 
@@ -159,6 +169,18 @@ export const App: React.FC = () => {
               <DemandView
                 orders={temporallyFilteredOrders}
                 selectedAgent={selectedAgent}
+              />
+            )}
+
+            {activeTab === "sales" && (
+              <SalesView
+                sales={temporallyFilteredSales}
+                allSales={data?.sales || []}
+                selectedAgent={selectedAgent}
+                setSelectedAgent={setSelectedAgent}
+                agentDetails={data?.agentDetails || []}
+                selectedSalon={selectedSalon}
+                onSalonChange={setSelectedSalon}
               />
             )}
 
@@ -203,7 +225,7 @@ export const App: React.FC = () => {
             <strong className="text-slate-700">
               {selectedSalon === "luxury_rd" ? "Luxury RD" : "Gloss (Sede Principal)"}
             </strong>{" "}
-            &middot; {data?.metadata.counts.totalOrders || 0} órdenes en base &middot; {data?.agents.length || 0} agentes
+            &middot; {data?.metadata.counts.totalOrders || 0} órdenes &middot; {data?.metadata.counts.salesCount ? `${data.metadata.counts.salesCount.toLocaleString("es-PE")} ventas · ` : ""}{data?.agents.length || 0} agentes
           </span>
         </div>
       </footer>

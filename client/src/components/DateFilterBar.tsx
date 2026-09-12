@@ -8,6 +8,7 @@ interface DateFilterBarProps {
   minAvailableDate?: string;
   maxAvailableDate?: string;
   totalFilteredOrders: number;
+  customCountLabel?: string;
 }
 
 export const DateFilterBar: React.FC<DateFilterBarProps> = ({
@@ -15,7 +16,8 @@ export const DateFilterBar: React.FC<DateFilterBarProps> = ({
   setDateFilter,
   minAvailableDate,
   maxAvailableDate,
-  totalFilteredOrders
+  totalFilteredOrders,
+  customCountLabel
 }) => {
   const [showCustomPicker, setShowCustomPicker] = useState(dateFilter.preset === "CUSTOM");
   const [customStart, setCustomStart] = useState(dateFilter.startDate || minAvailableDate || "");
@@ -121,7 +123,7 @@ export const DateFilterBar: React.FC<DateFilterBarProps> = ({
         {/* Indicador de registros filtrados */}
         <div className="flex items-center gap-2 text-xs">
           <span className="px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-800 border border-cyan-200 font-mono font-bold">
-            {totalFilteredOrders} órdenes en este rango
+            {customCountLabel || `${totalFilteredOrders} órdenes en este rango`}
           </span>
 
           {dateFilter.preset !== "ALL" && (

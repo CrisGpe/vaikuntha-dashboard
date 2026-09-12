@@ -56,3 +56,12 @@ export function formatDisplayDate(rawDate?: string, isoDate?: string): string {
 
   return str;
 }
+
+export function formatPEN(amount: number): string {
+  return new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount || 0);
+}

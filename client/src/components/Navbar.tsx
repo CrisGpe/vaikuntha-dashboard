@@ -7,8 +7,8 @@ import { DataControlActions } from "./navbar/DataControlActions";
 import { TabNavigation } from "./navbar/TabNavigation";
 
 interface NavbarProps {
-  activeTab: "demand" | "orders" | "clients" | "interview";
-  setActiveTab: (tab: "demand" | "orders" | "clients" | "interview") => void;
+  activeTab: "demand" | "sales" | "orders" | "clients" | "interview";
+  setActiveTab: (tab: "demand" | "sales" | "orders" | "clients" | "interview") => void;
   selectedAgent: string;
   setSelectedAgent: (agent: string) => void;
   selectedSalon: string;

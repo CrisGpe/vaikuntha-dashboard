@@ -1,9 +1,9 @@
 import React from "react";
-import { BarChart3, ClipboardList, Users, FileCheck2 } from "lucide-react";
+import { BarChart3, CircleDollarSign, ClipboardList, Users, FileCheck2 } from "lucide-react";
 
 interface TabNavigationProps {
-  activeTab: "demand" | "orders" | "clients" | "interview";
-  setActiveTab: (tab: "demand" | "orders" | "clients" | "interview") => void;
+  activeTab: "demand" | "sales" | "orders" | "clients" | "interview";
+  setActiveTab: (tab: "demand" | "sales" | "orders" | "clients" | "interview") => void;
   source: string;
 }
 
@@ -17,10 +17,10 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
 
   return (
     <div className="flex items-center justify-between border-t border-slate-100 py-1">
-      <nav className="flex items-center gap-1 sm:gap-1.5">
+      <nav className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
         <button
           onClick={() => setActiveTab("demand")}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
             activeTab === "demand"
               ? "bg-cyan-50 text-cyan-800 border border-cyan-200 shadow-2xs"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
@@ -31,8 +31,20 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab("sales")}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+            activeTab === "sales"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
+          }`}
+        >
+          <CircleDollarSign className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Ventas & Facturación</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("orders")}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
             activeTab === "orders"
               ? "bg-cyan-50 text-cyan-800 border border-cyan-200 shadow-2xs"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
@@ -44,7 +56,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
 
         <button
           onClick={() => setActiveTab("clients")}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
             activeTab === "clients"
               ? "bg-cyan-50 text-cyan-800 border border-cyan-200 shadow-2xs"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
@@ -56,7 +68,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
 
         <button
           onClick={() => setActiveTab("interview")}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
             activeTab === "interview"
               ? "bg-gradient-to-r from-cyan-100/80 to-blue-100/80 text-cyan-950 border border-cyan-300 shadow-xs"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
